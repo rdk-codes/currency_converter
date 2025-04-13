@@ -69,9 +69,12 @@ def filter_combobox(event, combobox, values):
 
 # UI Setup
 root = tk.Tk()
-root.title("💱 Currency Converter")
+root.title("Currency Converter")
 root.geometry("500x500")
 root.resizable(False, False)
+
+icon = tk.PhotoImage(file='icon.png')
+root.iconphoto(True, icon)
 
 mainframe = ttk.Frame(root, padding=20)
 mainframe.pack(fill="both", expand=True)
