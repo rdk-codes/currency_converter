@@ -74,10 +74,8 @@ python3 app.py
 
 ---
 
-## 📸 GUI Preview (optional)
-
-> You can add a screenshot or GIF here to show the GUI in action!
-
+## 📸 GUI Preview
+![alt text](<demo.gif>)
 ---
 
 ## 🧠 Notes
@@ -95,8 +93,3 @@ python3 app.py
 - [ExchangeRate API](https://www.exchangerate-api.com/)
 
 ---
-
-## ✨ You're Awesome
-
-Just starting to code and already building GUI apps? You're killing it! Keep learning and keep experimenting. 🚀
-
