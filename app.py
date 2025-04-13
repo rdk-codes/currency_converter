@@ -1,84 +1,105 @@
-from dotenv import load_dotenv
 import tkinter as tk
+from tkinter import ttk
 import requests
+from dotenv import load_dotenv
 import os
-import json
-from datetime import datetime, timedelta
+# Load API Key
+load_dotenv()
+API_KEY = os.getenv("API_KEY")
 
-CACHE_FILE = "rates_cache.json"
-CACHE_DURATION = timedelta(hours=1)  # use cache for 1 hour
+def get_all_currencies():
+    url = f"https://v6.exchangerate-api.com/v6/{API_KEY}/codes"
+    try:
+        response = requests.get(url)
+        data = response.json()
+        if data['result'] == 'success':
+            return [f"{code} - {name}" for code, name in data['supported_codes']]
+    except Exception as e:
+        print("Failed to fetch currency list:", e)
+    return []
 
-load_dotenv(".env")
-api_key = os.getenv("API_KEY")
-
-def get_conversion_rates():
-    if os.path.exists(CACHE_FILE):
-        with open(CACHE_FILE, "r") as file:
-            cache = json.load(file)
-            if datetime.now() - datetime.fromisoformat(cache["timestamp"]) < CACHE_DURATION:
-                return cache["conversion_rates"]
+def convert_currency():
+    amount = amount_entry.get()
+    from_raw = from_combo.get()
+    to_raw = to_combo.get()
     
-    # Otherwise, fetch from API
-    response = requests.get(f"https://v6.exchangerate-api.com/v6/{api_key}/latest/USD")
-    data = response.json()
-    rates = data["conversion_rates"]
+    if not amount or not from_raw or not to_raw:
+        result_label.config(text="⚠️ Please fill in all fields.")
+        return
+    
+    try:
+        # Handle both full format and code-only input
+        if " - " in from_raw:
+            from_currency = from_raw.split(" - ")[0]
+        else:
+            from_currency = from_raw.upper()
+            
+        if " - " in to_raw:
+            to_currency = to_raw.split(" - ")[0]
+        else:
+            to_currency = to_raw.upper()
+        
+        url = f"https://v6.exchangerate-api.com/v6/{API_KEY}/pair/{from_currency}/{to_currency}/{amount}"
+        
+        response = requests.get(url)
+        data = response.json()
+        if data['result'] == "success":
+            result = data['conversion_result']
+            result_label.config(text=f"✅ {amount} {from_currency} = {result:.2f} {to_currency}")
+        else:
+            result_label.config(text=f"❌ Conversion failed. Error: {data.get('error-type', 'Unknown error')}")
+    except Exception as e:
+        result_label.config(text=f"🚨 Error: {e}")
 
-    # Save to file with timestamp
-    with open(CACHE_FILE, "w") as file:
-        json.dump({"timestamp": datetime.now().isoformat(), "conversion_rates": rates}, file)
+def filter_combobox(event, combobox, values):
+    # Store cursor position
+    cursor_pos = combobox.index(tk.INSERT)
+    current_text = combobox.get()
+    
+    # Update the list without interrupting typing
+    filtered = [v for v in values if current_text.lower() in v.lower()]
+    combobox['values'] = filtered
+    
+    # Keep the text as is
+    combobox.delete(0, tk.END)
+    combobox.insert(0, current_text)
+    
+    # Restore cursor position
+    combobox.icursor(cursor_pos)
 
-    return rates
-
-conversion_rates = get_conversion_rates() 
-
-def convert_to_usd(amt : float, unit : str): 
-    usd_amt = amt / conversion_rates[unit.strip().upper()]
-    return round(usd_amt, 3)
-
-def convert_to_other(amt : float, unit: str): 
-    other_amt = amt * conversion_rates[unit.strip().upper()]
-    return round(other_amt, 3)
-
-def convert():
-    result_usd = convert_to_usd(float(amt_entry.get()), entry_1.get())
-    result = convert_to_other(result_usd, entry_2.get())
-    result_label.config(text=f"Result is {result}")
-
+# UI Setup
 root = tk.Tk()
-my_img = tk.PhotoImage(file='icon.png')
-root.geometry("400x400")
+root.title("💱 Currency Converter")
+root.geometry("500x500")
 root.resizable(False, False)
-root.title("Currency Converter")
-root.iconphoto(True, my_img)
 
-title_label = tk.Label(root, text="CURRENCY CONVERTER", font=("Arial", 16, "bold"))
-title_label.pack(pady=20)
+mainframe = ttk.Frame(root, padding=20)
+mainframe.pack(fill="both", expand=True)
 
-amt_frame = tk.Frame(root)
-amt_frame.pack(pady=5)
-amt_label = tk.Label(amt_frame, text="Amount 💰", font=("Arial", 12))
-amt_label.grid(row=0, column=0, padx=5)
-amt_entry = tk.Entry(amt_frame, width=15)
-amt_entry.grid(row=0, column=1, padx=5)
+ttk.Label(mainframe, text="Currency Converter", font=("Helvetica", 20, "bold")).pack(pady=(10, 20))
 
-frame1 = tk.Frame(root)
-frame1.pack(pady=5)
-label_1 = tk.Label(frame1, text="Currency is 💵", font=("Arial", 12))
-label_1.grid(row=0, column=0, padx=5)
-entry_1 = tk.Entry(frame1, width=15)
-entry_1.grid(row=0, column=1, padx=5)
+ttk.Label(mainframe, text="Amount").pack(anchor="w")
+amount_entry = ttk.Entry(mainframe, font=("Helvetica", 12))
+amount_entry.pack(fill="x", pady=5)
 
-frame2 = tk.Frame(root)
-frame2.pack(pady=5)
-label_2 = tk.Label(frame2, text="Convert to 💶", font=("Arial", 12))
-label_2.grid(row=0, column=0, padx=5)
-entry_2 = tk.Entry(frame2, width=15)
-entry_2.grid(row=0, column=1, padx=5)
+# Currency dropdowns
+currencies = sorted(get_all_currencies())
 
-calculate_button = tk.Button(root, text="Convert", width=12, height=1, command=convert)
-calculate_button.pack(pady=15)
+ttk.Label(mainframe, text="From Currency").pack(anchor="w")
+from_combo = ttk.Combobox(mainframe, font=("Helvetica", 12))
+from_combo['values'] = currencies
+from_combo.pack(fill="x", pady=5)
+from_combo.bind('<KeyRelease>', lambda e: filter_combobox(e, from_combo, currencies))
 
-result_label = tk.Label(root, text='', font=("Arial", 12))
+ttk.Label(mainframe, text="To Currency").pack(anchor="w")
+to_combo = ttk.Combobox(mainframe, font=("Helvetica", 12))
+to_combo['values'] = currencies
+to_combo.pack(fill="x", pady=5)
+to_combo.bind('<KeyRelease>', lambda e: filter_combobox(e, to_combo, currencies))
+
+ttk.Button(mainframe, text="Convert", command=convert_currency).pack(pady=20)
+
+result_label = ttk.Label(mainframe, text="", font=("Helvetica", 14))
 result_label.pack(pady=10)
 
 root.mainloop()
